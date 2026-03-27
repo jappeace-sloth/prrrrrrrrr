@@ -1,7 +1,7 @@
 module Main where
 
-import HaskellMobile (appContext, platformLog)
-import HaskellMobile.Lifecycle (LifecycleEvent(..), MobileContext(onLifecycle))
+import HaskellMobile.App (appContext)
+import HaskellMobile.Lifecycle (LifecycleEvent(..), MobileContext(onLifecycle), platformLog)
 
 -- | Desktop entry point: simulates lifecycle and renders UI.
 main :: IO ()

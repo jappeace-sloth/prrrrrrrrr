@@ -75,11 +75,10 @@ library prrrrrrrrr-app-impl
   -- sqlite3 needs these
   cc-options: -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION
 
--- | Instantiation library: mixes the indefinite haskell-mobile lib with our impl.
+-- | Collects all project libraries for consumers (exe, tests).
 library prrrrrrrrr-app
   import: common-options
   reexported-modules:
-      HaskellMobile,
       HaskellMobile.Lifecycle,
       HaskellMobile.App,
       HaskellMobile.Widget,
@@ -88,7 +87,6 @@ library prrrrrrrrr-app
       GymTracker.Storage,
       GymTracker.Views
   build-depends:
-      haskell-mobile,
       prrrrrrrrr:prrrrrrrrr-app-impl,
       haskell-mobile:haskell-mobile-lifecycle,
       haskell-mobile:haskell-mobile-ui
