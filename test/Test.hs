@@ -43,10 +43,10 @@ modelTests = testGroup "Model"
     nub [] = []
     nub (x:xs) = x : nub (filter (/= x) xs)
 
--- | Storage tests use a single withDatabase call each to avoid
--- file locking issues. Each test initializes a fresh table.
+-- | Storage tests run sequentially — SQLite is compiled with
+-- SQLITE_THREADSAFE=0, so concurrent access to the same file fails.
 storageTests :: TestTree
-storageTests = testGroup "Storage"
+storageTests = sequentialTestGroup "Storage" AllFinish
   [ testCase "saveRecord then loadRecords roundtrip" $ do
       withDatabase $ \db -> do
         initDB db
