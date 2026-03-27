@@ -1,13 +1,13 @@
 { sources ? import ../npins }:
 let
-  pkgs = import sources.nixpkgs {};
+  pkgs = import ./pkgs.nix { inherit sources; };
   haskellMobileSrc = sources.haskell-mobile;
   hp = pkgs.haskellPackages;
-
-  # Backpack instantiation requires both packages in the same cabal project.
-  # We cannot use callCabal2nix for each separately because the indefinite
-  # haskell-mobile library must be instantiated in the same build as prrrrrrrrr.
-  combined = pkgs.stdenv.mkDerivation {
+in {
+  # Backpack cross-package instantiation requires both packages built
+  # from source in the same cabal invocation. callCabal2nix cannot
+  # handle this because it builds each package separately via Setup.hs.
+  native = pkgs.stdenv.mkDerivation {
     name = "prrrrrrrrr-project";
     src = ../.;
     nativeBuildInputs = [
@@ -23,17 +23,18 @@ let
     buildPhase = ''
       export HOME=$TMPDIR
 
-      # Pre-create cabal config to prevent Hackage index fetch attempt.
-      # In the nix sandbox there is no network.
+      # Prevent Hackage index fetch in the sandbox
       mkdir -p $HOME/.config/cabal
       cat > $HOME/.config/cabal/config <<'CABALEOF'
       CABALEOF
 
-      # Symlink haskell-mobile source for cabal.project
-      rm -rf haskell-mobile-src
-      ln -s ${haskellMobileSrc} haskell-mobile-src
+      # Add haskell-mobile source for Backpack instantiation
+      cat > cabal.project.local <<EOF
+      packages: ${haskellMobileSrc}/
+      package haskell-mobile
+        tests: False
+      EOF
 
-      # GHC already has all deps via ghcWithPackages.
       cabal build all --enable-tests --offline
       cabal test unit --offline
     '';
@@ -43,6 +44,4 @@ let
       touch $out/ci-passed
     '';
   };
-in {
-  native = combined;
 }

@@ -16,10 +16,14 @@ pkgs.mkShell {
     pkgs.cabal-install
   ];
 
-  # Tell cabal where to find haskell-mobile source
+  # Inject haskell-mobile source via cabal.project.local so cabal can
+  # do Backpack instantiation from source (required for cross-package
+  # signature filling).
   shellHook = ''
-    if [ ! -e haskell-mobile-src ]; then
-      ln -sf ${haskellMobileSrc} haskell-mobile-src
-    fi
+    cat > cabal.project.local <<EOF
+    packages: ${haskellMobileSrc}/
+    package haskell-mobile
+      tests: False
+    EOF
   '';
 }
