@@ -1,7 +1,2 @@
 packages:
   .
-  haskell-mobile-src/
-
--- Only test our package, not haskell-mobile
-package haskell-mobile
-  tests: False

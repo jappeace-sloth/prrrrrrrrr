@@ -3,7 +3,11 @@
 }:
 let
   haskellMobileSrc = sources.haskell-mobile;
-  hp = pkgs.haskellPackages;
+  hp = pkgs.haskellPackages.override {
+    overrides = hnew: hold: {
+      haskell-mobile = hnew.callCabal2nix "haskell-mobile" haskellMobileSrc {};
+    };
+  };
 in
 pkgs.mkShell {
   buildInputs = [
@@ -12,14 +16,8 @@ pkgs.mkShell {
       ps.containers
       ps.tasty
       ps.tasty-hunit
+      ps.haskell-mobile
     ]))
     pkgs.cabal-install
   ];
-
-  # Tell cabal where to find haskell-mobile source
-  shellHook = ''
-    if [ ! -e haskell-mobile-src ]; then
-      ln -sf ${haskellMobileSrc} haskell-mobile-src
-    fi
-  '';
 }
