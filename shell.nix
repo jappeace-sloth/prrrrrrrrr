@@ -1,23 +1,11 @@
-{ sources ? import ./npins
-, pkgs ? import sources.nixpkgs {}
+{ hpkgs ? import ./nix/hpkgs.nix {}
+, pkgs ? import ./nix/pkgs.nix {}
 }:
-let
-  haskellMobileSrc = sources.haskell-mobile;
-  hp = pkgs.haskellPackages.override {
-    overrides = hnew: hold: {
-      haskell-mobile = hnew.callCabal2nix "haskell-mobile" haskellMobileSrc {};
-    };
-  };
-in
-pkgs.mkShell {
+hpkgs.shellFor {
+  packages = ps: [ ps.prrrrrrrrr ps.haskell-mobile ];
+  withHoogle = false;
+
   buildInputs = [
-    (hp.ghcWithPackages (ps: [
-      ps.text
-      ps.containers
-      ps.tasty
-      ps.tasty-hunit
-      ps.haskell-mobile
-    ]))
     pkgs.cabal-install
   ];
 }
