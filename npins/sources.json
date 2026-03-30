@@ -7,11 +7,11 @@
         "owner": "jappeace-sloth",
         "repo": "haskell-mobile"
       },
-      "branch": "text-input-widget",
+      "branch": "consolidate-single-library",
       "submodules": false,
-      "revision": "e94d86e6b726c6e9f34864980156e5b708dffad9",
-      "url": "https://github.com/jappeace-sloth/haskell-mobile/archive/e94d86e6b726c6e9f34864980156e5b708dffad9.tar.gz",
-      "hash": "sha256-RdiGEN/0ri6zM9iOyQfab49kr4OvzMf7lQb642s+6BY="
+      "revision": "6405b44dc6f9610df2690da8f57e57bca93dc6e0",
+      "url": "https://github.com/jappeace-sloth/haskell-mobile/archive/6405b44dc6f9610df2690da8f57e57bca93dc6e0.tar.gz",
+      "hash": "sha256-psgpt9XmV2Q0LwWDk83bfxMEbaJlXhWqzdQ7iIN+0Lk="
     },
     "nixpkgs": {
       "type": "Channel",

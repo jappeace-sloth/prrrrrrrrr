@@ -52,7 +52,7 @@ common common-options
 
   default-language: Haskell2010
 
--- | Implements the HaskellMobile.App Backpack signature for the gym tracker.
+-- | Implements the gym tracker app using haskell-mobile's MobileApp type.
 library prrrrrrrrr-app-impl
   import: common-options
   exposed-modules:
@@ -63,8 +63,7 @@ library prrrrrrrrr-app-impl
   hs-source-dirs:
       src
   build-depends:
-      haskell-mobile:haskell-mobile-lifecycle,
-      haskell-mobile:haskell-mobile-ui,
+      haskell-mobile,
       text,
       containers
   c-sources:
@@ -75,13 +74,13 @@ library prrrrrrrrr-app-impl
   -- sqlite3 needs these
   cc-options: -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION
 
--- | Instantiation library: mixes the indefinite haskell-mobile lib with our impl.
+-- | Collects all project libraries for consumers (exe, tests).
 library prrrrrrrrr-app
   import: common-options
   reexported-modules:
       HaskellMobile,
       HaskellMobile.Lifecycle,
-      HaskellMobile.App,
+      prrrrrrrrr:HaskellMobile.App,
       HaskellMobile.Widget,
       HaskellMobile.Render,
       GymTracker.Model,
@@ -89,9 +88,7 @@ library prrrrrrrrr-app
       GymTracker.Views
   build-depends:
       haskell-mobile,
-      prrrrrrrrr:prrrrrrrrr-app-impl,
-      haskell-mobile:haskell-mobile-lifecycle,
-      haskell-mobile:haskell-mobile-ui
+      prrrrrrrrr:prrrrrrrrr-app-impl
 
 executable exe
   import: common-options

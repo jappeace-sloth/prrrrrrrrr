@@ -1,6 +1,12 @@
 # Android shared library build for prrrrrrrrr.
 # Adapts haskell-mobile's android.nix, adding SQLite and storage_helper.
-{ sources ? import ../npins }:
+# mainModule: path to the user's Main.hs.
+# The user writes a plain main :: IO () that calls runMobileApp.
+# No foreign export ccall needed — the C bridge calls main via
+# the GHC RTS API (rts_evalLazyIO on ZCMain_main_closure).
+{ sources ? import ../npins
+, mainModule ? ../app/MobileMain.hs
+}:
 let
   haskellMobileSrc = sources.haskell-mobile;
 
@@ -64,15 +70,19 @@ in pkgs.stdenv.mkDerivation {
 
     echo "=== Copy source modules ==="
     mkdir -p HaskellMobile GymTracker
-    cp ${haskellMobileSrc}/src-lifecycle/HaskellMobile/Lifecycle.hs HaskellMobile/
-    cp ${haskellMobileSrc}/src-ui/HaskellMobile/Widget.hs HaskellMobile/
-    cp ${haskellMobileSrc}/src-ui/HaskellMobile/UIBridge.hs HaskellMobile/
-    cp ${haskellMobileSrc}/src-ui/HaskellMobile/Render.hs HaskellMobile/
+    cp ${haskellMobileSrc}/src/HaskellMobile/Types.hs HaskellMobile/
+    cp ${haskellMobileSrc}/src/HaskellMobile/Lifecycle.hs HaskellMobile/
+    cp ${haskellMobileSrc}/src/HaskellMobile/Widget.hs HaskellMobile/
+    cp ${haskellMobileSrc}/src/HaskellMobile/UIBridge.hs HaskellMobile/
+    cp ${haskellMobileSrc}/src/HaskellMobile/Render.hs HaskellMobile/
     cp ${haskellMobileSrc}/src/HaskellMobile.hs .
     cp ${../src/HaskellMobile/App.hs} HaskellMobile/
     cp ${../src/GymTracker/Model.hs} GymTracker/
     cp ${../src/GymTracker/Storage.hs} GymTracker/
     cp ${../src/GymTracker/Views.hs} GymTracker/
+
+    # Copy user entry point (plain main :: IO (), no foreign export needed)
+    cp ${mainModule} Main.hs
 
     echo "=== Compile Haskell shared library ==="
     GHC_PKG_DIR="${ghcPkgDir}"
@@ -82,11 +92,13 @@ in pkgs.stdenv.mkDerivation {
       -o libprrrrrrrrr.so \
       -I${haskellMobileSrc}/include \
       -I${../cbits} \
+      Main.hs \
       HaskellMobile.hs \
       ${haskellMobileSrc}/cbits/android_stubs.c \
       ${haskellMobileSrc}/cbits/platform_log.c \
       ${haskellMobileSrc}/cbits/numa_stubs.c \
       ${haskellMobileSrc}/cbits/ui_bridge.c \
+      ${haskellMobileSrc}/cbits/run_main.c \
       -optl-L${androidPkgs.gmp}/lib \
       -optl-L${androidPkgs.libffi}/lib \
       -optl-lffi \
@@ -96,7 +108,7 @@ in pkgs.stdenv.mkDerivation {
       -optl$(pwd)/ui_bridge_android.o \
       -optl$(pwd)/sqlite3.o \
       -optl$(pwd)/storage_helper.o \
-      -optl-Wl,-u,haskellInit \
+      -optl-Wl,-u,haskellRunMain \
       -optl-Wl,-u,haskellGreet \
       -optl-Wl,-u,haskellOnLifecycle \
       -optl-Wl,-u,haskellCreateContext \
