@@ -9,9 +9,9 @@
       },
       "branch": "extract-nix-lib",
       "submodules": false,
-      "revision": "e6245a9e7edff32d69c853320a7edd5a5a1390eb",
-      "url": "https://github.com/jappeace-sloth/haskell-mobile/archive/e6245a9e7edff32d69c853320a7edd5a5a1390eb.tar.gz",
-      "hash": "sha256-Yw4om6QegDnowfSHYKf9tuj6ycnuL1X3i7zcMPK8drU="
+      "revision": "2cd362b31df6b0e5c44f6b63118d8f01b85d106f",
+      "url": "https://github.com/jappeace-sloth/haskell-mobile/archive/2cd362b31df6b0e5c44f6b63118d8f01b85d106f.tar.gz",
+      "hash": "sha256-T06Dwa5+kA+8ufzI9Y/JhEmLTLjzmZRPe6pbqi4PLws="
     },
     "nixpkgs": {
       "type": "Channel",
