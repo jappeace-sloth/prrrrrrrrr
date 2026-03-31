@@ -7,11 +7,11 @@
         "owner": "jappeace-sloth",
         "repo": "haskell-mobile"
       },
-      "branch": "consolidate-single-library",
+      "branch": "extract-nix-lib",
       "submodules": false,
-      "revision": "6405b44dc6f9610df2690da8f57e57bca93dc6e0",
-      "url": "https://github.com/jappeace-sloth/haskell-mobile/archive/6405b44dc6f9610df2690da8f57e57bca93dc6e0.tar.gz",
-      "hash": "sha256-psgpt9XmV2Q0LwWDk83bfxMEbaJlXhWqzdQ7iIN+0Lk="
+      "revision": "2cd362b31df6b0e5c44f6b63118d8f01b85d106f",
+      "url": "https://github.com/jappeace-sloth/haskell-mobile/archive/2cd362b31df6b0e5c44f6b63118d8f01b85d106f.tar.gz",
+      "hash": "sha256-T06Dwa5+kA+8ufzI9Y/JhEmLTLjzmZRPe6pbqi4PLws="
     },
     "nixpkgs": {
       "type": "Channel",
