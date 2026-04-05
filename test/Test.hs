@@ -128,6 +128,7 @@ viewTests = testGroup "Views"
         Button _ _      -> assertFailure "expected Column, got Button"
         TextInput _ _ _ -> assertFailure "expected Column, got TextInput"
         Row _           -> assertFailure "expected Column, got Row"
+        ScrollView _    -> assertFailure "expected Column, got ScrollView"
 
   , testCase "exerciseListView second child is Text Snatches category header" $ do
       st <- newAppState Map.empty
@@ -151,6 +152,7 @@ viewTests = testGroup "Views"
         Button _ _      -> assertFailure "expected Column, got Button"
         TextInput _ _ _ -> assertFailure "expected Column, got TextInput"
         Row _           -> assertFailure "expected Column, got Row"
+        ScrollView _    -> assertFailure "expected Column, got ScrollView"
 
   , testCase "enterPRView with history shows entries in 4th Column child" $ do
       st <- newAppState Map.empty
@@ -173,6 +175,7 @@ viewTests = testGroup "Views"
         Button _ _      -> assertFailure "expected Column"
         TextInput _ _ _ -> assertFailure "expected Column"
         Row _           -> assertFailure "expected Column"
+        ScrollView _    -> assertFailure "expected Column"
 
   , testCase "screen navigation: list -> enter PR -> back" $ do
       st <- newAppState Map.empty
