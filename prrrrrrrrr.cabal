@@ -52,46 +52,30 @@ common common-options
 
   default-language: Haskell2010
 
--- | Implements the HaskellMobile.App Backpack signature for the gym tracker.
-library prrrrrrrrr-app-impl
+library
   import: common-options
   exposed-modules:
       HaskellMobile.App
       GymTracker.Model
       GymTracker.Storage
       GymTracker.Views
+  reexported-modules:
+      HaskellMobile,
+      HaskellMobile.Types,
+      HaskellMobile.Lifecycle,
+      HaskellMobile.Widget,
+      HaskellMobile.Render
   hs-source-dirs:
       src
   build-depends:
-      haskell-mobile:haskell-mobile-lifecycle,
-      haskell-mobile:haskell-mobile-ui,
+      haskell-mobile,
       text,
-      containers
+      containers,
+      sqlite-simple
   c-sources:
-      cbits/sqlite3.c
       cbits/storage_helper.c
   include-dirs:
       cbits
-  -- sqlite3 needs these
-  cc-options: -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION
-
--- | Instantiation library: mixes the indefinite haskell-mobile lib with our impl.
-library prrrrrrrrr-app
-  import: common-options
-  reexported-modules:
-      HaskellMobile,
-      HaskellMobile.Lifecycle,
-      HaskellMobile.App,
-      HaskellMobile.Widget,
-      HaskellMobile.Render,
-      GymTracker.Model,
-      GymTracker.Storage,
-      GymTracker.Views
-  build-depends:
-      haskell-mobile,
-      prrrrrrrrr:prrrrrrrrr-app-impl,
-      haskell-mobile:haskell-mobile-lifecycle,
-      haskell-mobile:haskell-mobile-ui
 
 executable exe
   import: common-options
@@ -99,7 +83,7 @@ executable exe
   hs-source-dirs:
       app
   build-depends:
-      prrrrrrrrr:prrrrrrrrr-app
+      prrrrrrrrr
   ghc-options: -Wno-unused-packages -threaded -rtsopts "-with-rtsopts=-N -M7G -T -Iw10"
 
 test-suite unit
@@ -112,6 +96,6 @@ test-suite unit
   build-depends:
       tasty,
       tasty-hunit,
-      prrrrrrrrr:prrrrrrrrr-app,
+      prrrrrrrrr,
       text,
       containers
