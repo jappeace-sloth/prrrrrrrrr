@@ -1,0 +1,13 @@
+# prrrrrrrrr
+
+This project is a consumer of [haskell-mobile](https://github.com/jappeace/haskell-mobile).
+Its purpose is to drive haskell-mobile's API design by being a real-world user of it.
+
+## Rule: open issues upstream, not workarounds here
+
+If you encounter a haskell-mobile defect while working on this project — a missing feature,
+a wrong abstraction, a symbol that leaks into consumer code — open an issue in haskell-mobile.
+Do not add workarounds here (FFI exports, compatibility stubs, conditional imports, etc.).
+
+A workaround in prrrrrrrrr that papers over a haskell-mobile bug is a code smell. It hides
+the problem from the library's own test suite and makes the correct fix harder to see.
