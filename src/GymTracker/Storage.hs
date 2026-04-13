@@ -1,8 +1,8 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 -- | SQLite-backed storage for PR records.
 --
--- Uses raw FFI bindings to the bundled sqlite3 amalgamation.
+-- Uses sqlite-simple for direct SQL access with no Template Haskell.
 -- The database is stored at @get_app_files_dir() ++ "/prrrrrrrrr.db"@.
 module GymTracker.Storage
   ( withDatabase
@@ -10,62 +10,40 @@ module GymTracker.Storage
   , loadRecords
   , saveRecord
   , loadExerciseHistory
+  , getLastSyncTime
+  , setLastSyncTime
+  , getHistorySince
+  , mergeRecord
+  , mergeHistoryEntry
+  , deleteRecordsByExercise
+  , deleteHistoryByExercise
+  , deleteSyncMeta
+  , queryHistoryByExercise
+  , queryHistoryByExerciseAndTime
+  , insertHistory
+  , Connection
   )
 where
 
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text, pack, unpack)
-import Foreign.C.String (CString, withCString, peekCString)
-import Foreign.C.Types (CInt(..))
-import Foreign.Marshal.Alloc (alloca)
-import Foreign.Ptr (Ptr, nullPtr, FunPtr, nullFunPtr)
-import Foreign.Storable (peek)
-import GymTracker.Model (Exercise(..), allExercises, exerciseName)
-import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
-
--- | Opaque SQLite database handle.
-data Sqlite3
--- | Opaque SQLite statement handle.
-data Sqlite3Stmt
-
--- SQLite FFI
-foreign import ccall "sqlite3_open"
-  c_sqlite3_open :: CString -> Ptr (Ptr Sqlite3) -> IO CInt
-
-foreign import ccall "sqlite3_close"
-  c_sqlite3_close :: Ptr Sqlite3 -> IO CInt
-
-foreign import ccall "sqlite3_exec"
-  c_sqlite3_exec :: Ptr Sqlite3 -> CString -> FunPtr () -> Ptr () -> Ptr CString -> IO CInt
-
-foreign import ccall "sqlite3_prepare_v2"
-  c_sqlite3_prepare_v2 :: Ptr Sqlite3 -> CString -> CInt -> Ptr (Ptr Sqlite3Stmt) -> Ptr (Ptr ()) -> IO CInt
-
-foreign import ccall "sqlite3_step"
-  c_sqlite3_step :: Ptr Sqlite3Stmt -> IO CInt
-
-foreign import ccall "sqlite3_finalize"
-  c_sqlite3_finalize :: Ptr Sqlite3Stmt -> IO CInt
-
-foreign import ccall "sqlite3_column_text"
-  c_sqlite3_column_text :: Ptr Sqlite3Stmt -> CInt -> IO CString
-
-foreign import ccall "sqlite3_column_double"
-  c_sqlite3_column_double :: Ptr Sqlite3Stmt -> CInt -> IO Double
-
-foreign import ccall "sqlite3_bind_text"
-  c_sqlite3_bind_text :: Ptr Sqlite3Stmt -> CInt -> CString -> CInt -> Ptr () -> IO CInt
-
-foreign import ccall "sqlite3_bind_double"
-  c_sqlite3_bind_double :: Ptr Sqlite3Stmt -> CInt -> Double -> IO CInt
+import Data.Time (UTCTime, getCurrentTime)
+import Database.SQLite.Simple
+  ( Connection
+  , Only(..)
+  , open
+  , close
+  , execute_
+  , execute
+  , query
+  , query_
+  )
+import Foreign.C.String (CString, peekCString)
+import GymTracker.Model (Exercise(..), exerciseName, parseExercise)
 
 foreign import ccall "get_app_files_dir"
   c_get_app_files_dir :: IO CString
-
--- | SQLITE_ROW = 100
-sqliteRow :: CInt
-sqliteRow = 100
 
 -- | Get the database file path.
 getDbPath :: IO FilePath
@@ -73,134 +51,153 @@ getDbPath = do
   dir <- c_get_app_files_dir >>= peekCString
   pure (dir ++ "/prrrrrrrrr.db")
 
--- | Open the database, run an action, then close it.
-withDatabase :: (Ptr Sqlite3 -> IO a) -> IO a
+-- | Open the database, run an action with the connection, then close it.
+withDatabase :: (Connection -> IO a) -> IO a
 withDatabase action = do
   path <- getDbPath
-  db <- alloca $ \dbPtr -> do
-    rc <- withCString path $ \cpath ->
-      c_sqlite3_open cpath dbPtr
-    if rc /= 0
-      then error $ "Failed to open database: " ++ path
-      else peek dbPtr
-  result <- action db
-  _ <- c_sqlite3_close db
+  conn <- open path
+  result <- action conn
+  close conn
   pure result
 
--- | Create the pr_records and pr_history tables if they don't exist.
-initDB :: Ptr Sqlite3 -> IO ()
-initDB db = do
-  withCString "CREATE TABLE IF NOT EXISTS pr_records (exercise TEXT PRIMARY KEY, weight_kg REAL NOT NULL)" $ \sql -> do
-    rc <- c_sqlite3_exec db sql nullFunPtr nullPtr nullPtr
-    if rc /= 0
-      then error $ "initDB pr_records failed with code: " ++ show rc
-      else pure ()
-  withCString "CREATE TABLE IF NOT EXISTS pr_history (id INTEGER PRIMARY KEY AUTOINCREMENT, exercise TEXT NOT NULL, weight_kg REAL NOT NULL, recorded_at TEXT NOT NULL DEFAULT (datetime('now')))" $ \sql -> do
-    rc <- c_sqlite3_exec db sql nullFunPtr nullPtr nullPtr
-    if rc /= 0
-      then error $ "initDB pr_history failed with code: " ++ show rc
-      else pure ()
+-- | Create tables if they do not exist.
+initDB :: Connection -> IO ()
+initDB conn = do
+  execute_ conn "CREATE TABLE IF NOT EXISTS pr_record \
+    \(exercise TEXT UNIQUE NOT NULL, weight_kg REAL NOT NULL)"
+  execute_ conn "CREATE TABLE IF NOT EXISTS pr_history \
+    \(id INTEGER PRIMARY KEY, exercise TEXT NOT NULL, weight_kg REAL NOT NULL, \
+    \recorded_at TEXT NOT NULL, notes TEXT)"
+  execute_ conn "CREATE TABLE IF NOT EXISTS sync_meta \
+    \(key TEXT UNIQUE NOT NULL, value TEXT NOT NULL)"
 
 -- | Load all PR records from the database.
-loadRecords :: Ptr Sqlite3 -> IO (Map Exercise Double)
-loadRecords db = do
-  ref <- newIORef Map.empty
-  alloca $ \stmtPtr -> do
-    rc <- withCString "SELECT exercise, weight_kg FROM pr_records" $ \sql ->
-      c_sqlite3_prepare_v2 db sql (-1) stmtPtr nullPtr
-    if rc /= 0
-      then pure Map.empty
-      else do
-        stmt <- peek stmtPtr
-        loadRows stmt ref
-        _ <- c_sqlite3_finalize stmt
-        readIORef ref
-  where
-    loadRows :: Ptr Sqlite3Stmt -> IORef (Map Exercise Double) -> IO ()
-    loadRows stmt ref = do
-      rc <- c_sqlite3_step stmt
-      if rc == sqliteRow
-        then do
-          namePtr <- c_sqlite3_column_text stmt 0
-          name <- peekCString namePtr
-          weight <- c_sqlite3_column_double stmt 1
-          case nameToExercise (pack name) of
-            Just ex -> modifyIORef' ref (Map.insert ex weight)
-            Nothing -> pure ()  -- skip unknown exercises
-          loadRows stmt ref
-        else pure ()
+loadRecords :: Connection -> IO (Map Exercise Double)
+loadRecords conn = do
+  rows <- query_ conn "SELECT exercise, weight_kg FROM pr_record"
+    :: IO [(Text, Double)]
+  pure $ Map.fromList
+    [ (exercise, weight)
+    | (exerciseText, weight) <- rows
+    , Just exercise <- [parseExercise exerciseText]
+    ]
 
 -- | Save a single PR record (upsert) and append to history.
--- Uses SQLITE_STATIC for bind — the CString from withCString
--- lives until after sqlite3_step returns, so this is safe.
-saveRecord :: Ptr Sqlite3 -> Exercise -> Double -> IO ()
-saveRecord db exercise weight = do
-  upsertCurrent
-  insertHistory
-  where
-    upsertCurrent :: IO ()
-    upsertCurrent =
-      alloca $ \stmtPtr -> do
-        rc <- withCString "INSERT OR REPLACE INTO pr_records (exercise, weight_kg) VALUES (?, ?)" $ \sql ->
-          c_sqlite3_prepare_v2 db sql (-1) stmtPtr nullPtr
-        if rc /= 0
-          then pure ()
-          else do
-            stmt <- peek stmtPtr
-            withCString (unpack (exerciseName exercise)) $ \cname -> do
-              _ <- c_sqlite3_bind_text stmt 1 cname (-1) nullPtr
-              _ <- c_sqlite3_bind_double stmt 2 weight
-              _ <- c_sqlite3_step stmt
-              _ <- c_sqlite3_finalize stmt
-              pure ()
-
-    insertHistory :: IO ()
-    insertHistory =
-      alloca $ \stmtPtr -> do
-        rc <- withCString "INSERT INTO pr_history (exercise, weight_kg) VALUES (?, ?)" $ \sql ->
-          c_sqlite3_prepare_v2 db sql (-1) stmtPtr nullPtr
-        if rc /= 0
-          then pure ()
-          else do
-            stmt <- peek stmtPtr
-            withCString (unpack (exerciseName exercise)) $ \cname -> do
-              _ <- c_sqlite3_bind_text stmt 1 cname (-1) nullPtr
-              _ <- c_sqlite3_bind_double stmt 2 weight
-              _ <- c_sqlite3_step stmt
-              _ <- c_sqlite3_finalize stmt
-              pure ()
+saveRecord :: Connection -> Exercise -> Double -> Maybe Text -> IO ()
+saveRecord conn exercise weight notes = do
+  execute conn
+    "INSERT INTO pr_record (exercise, weight_kg) VALUES (?, ?) \
+    \ON CONFLICT (exercise) DO UPDATE SET weight_kg = ?"
+    (exerciseName exercise, weight, weight)
+  now <- getCurrentTime
+  execute conn
+    "INSERT INTO pr_history (exercise, weight_kg, recorded_at, notes) VALUES (?, ?, ?, ?)"
+    (exerciseName exercise, weight, show now, notes)
 
 -- | Load all history entries for an exercise, newest first.
-loadExerciseHistory :: Ptr Sqlite3 -> Exercise -> IO [(Double, Text)]
-loadExerciseHistory db exercise = do
-  ref <- newIORef []
-  alloca $ \stmtPtr -> do
-    rc <- withCString "SELECT weight_kg, recorded_at FROM pr_history WHERE exercise = ? ORDER BY id ASC" $ \sql ->
-      c_sqlite3_prepare_v2 db sql (-1) stmtPtr nullPtr
-    if rc /= 0
-      then pure []
-      else do
-        stmt <- peek stmtPtr
-        withCString (unpack (exerciseName exercise)) $ \cname -> do
-          _ <- c_sqlite3_bind_text stmt 1 cname (-1) nullPtr
-          loadRows stmt ref
-        _ <- c_sqlite3_finalize stmt
-        readIORef ref
-  where
-    loadRows :: Ptr Sqlite3Stmt -> IORef [(Double, Text)] -> IO ()
-    loadRows stmt ref = do
-      rc <- c_sqlite3_step stmt
-      if rc == sqliteRow
-        then do
-          weight    <- c_sqlite3_column_double stmt 0
-          tsPtr     <- c_sqlite3_column_text stmt 1
-          timestamp <- peekCString tsPtr
-          modifyIORef' ref ((weight, pack timestamp) :)
-          loadRows stmt ref
-        else pure ()
+loadExerciseHistory :: Connection -> Exercise -> IO [(Double, Text, Maybe Text)]
+loadExerciseHistory conn exercise = do
+  rows <- query conn
+    "SELECT weight_kg, recorded_at, notes FROM pr_history \
+    \WHERE exercise = ? ORDER BY id DESC"
+    (Only (exerciseName exercise))
+    :: IO [(Double, Text, Maybe Text)]
+  pure rows
 
--- | Parse an exercise name back to its constructor.
-nameToExercise :: Text -> Maybe Exercise
-nameToExercise t = case filter (\ex -> exerciseName ex == t) allExercises of
-  [ex] -> Just ex
-  _    -> Nothing
+-- | Read the last sync time from sync_meta, if any.
+getLastSyncTime :: Connection -> IO (Maybe UTCTime)
+getLastSyncTime conn = do
+  rows <- query conn
+    "SELECT value FROM sync_meta WHERE key = ?"
+    (Only ("last_sync_time" :: Text))
+    :: IO [Only Text]
+  pure $ case rows of
+    [Only val] -> Just (read (unpack val))
+    _          -> Nothing
+
+-- | Write the last sync time to sync_meta.
+setLastSyncTime :: Connection -> UTCTime -> IO ()
+setLastSyncTime conn syncTimestamp =
+  execute conn
+    "INSERT INTO sync_meta (key, value) VALUES (?, ?) \
+    \ON CONFLICT (key) DO UPDATE SET value = ?"
+    ("last_sync_time" :: Text, pack (show syncTimestamp), pack (show syncTimestamp))
+
+-- | Get all history entries recorded after the given time.
+getHistorySince :: Connection -> UTCTime -> IO [(Exercise, Double, UTCTime, Maybe Text)]
+getHistorySince conn since = do
+  rows <- query conn
+    "SELECT exercise, weight_kg, recorded_at, notes FROM pr_history \
+    \WHERE recorded_at > ? ORDER BY id ASC"
+    (Only (show since))
+    :: IO [(Text, Double, Text, Maybe Text)]
+  pure [ (exercise, weight, read (unpack timestamp), notes)
+       | (exerciseText, weight, timestamp, notes) <- rows
+       , Just exercise <- [parseExercise exerciseText]
+       ]
+
+-- | Insert a PR record only if the weight is strictly higher than the existing one.
+mergeRecord :: Connection -> Exercise -> Double -> IO ()
+mergeRecord conn exercise weight = do
+  existing <- query conn
+    "SELECT weight_kg FROM pr_record WHERE exercise = ?"
+    (Only (exerciseName exercise))
+    :: IO [Only Double]
+  case existing of
+    [Only existingWeight] | existingWeight >= weight -> pure ()
+    _ -> execute conn
+      "INSERT INTO pr_record (exercise, weight_kg) VALUES (?, ?) \
+      \ON CONFLICT (exercise) DO UPDATE SET weight_kg = ?"
+      (exerciseName exercise, weight, weight)
+
+-- | Insert a history entry if no duplicate exists (same exercise, weight, and timestamp).
+mergeHistoryEntry :: Connection -> Exercise -> Double -> UTCTime -> Maybe Text -> IO ()
+mergeHistoryEntry conn exercise weight timestamp notes = do
+  existing <- query conn
+    "SELECT id FROM pr_history WHERE exercise = ? AND weight_kg = ? AND recorded_at = ?"
+    (exerciseName exercise, weight, show timestamp)
+    :: IO [Only Int]
+  case existing of
+    (_:_) -> pure ()
+    []    -> execute conn
+      "INSERT INTO pr_history (exercise, weight_kg, recorded_at, notes) VALUES (?, ?, ?, ?)"
+      (exerciseName exercise, weight, show timestamp, notes)
+
+-- | Delete all PR records for a given exercise (used by tests).
+deleteRecordsByExercise :: Connection -> Exercise -> IO ()
+deleteRecordsByExercise conn exercise =
+  execute conn "DELETE FROM pr_record WHERE exercise = ?"
+    (Only (exerciseName exercise))
+
+-- | Delete all history entries for a given exercise (used by tests).
+deleteHistoryByExercise :: Connection -> Exercise -> IO ()
+deleteHistoryByExercise conn exercise =
+  execute conn "DELETE FROM pr_history WHERE exercise = ?"
+    (Only (exerciseName exercise))
+
+-- | Delete a sync_meta entry by key (used by tests).
+deleteSyncMeta :: Connection -> Text -> IO ()
+deleteSyncMeta conn metaKey =
+  execute conn "DELETE FROM sync_meta WHERE key = ?"
+    (Only metaKey)
+
+-- | Query history rows matching exercise and exact timestamp (used by tests).
+queryHistoryByExercise :: Connection -> Exercise -> IO [Only Int]
+queryHistoryByExercise conn exercise =
+  query conn
+    "SELECT id FROM pr_history WHERE exercise = ?"
+    (Only (exerciseName exercise))
+
+-- | Query history rows matching exercise, weight, and exact timestamp (used by tests).
+queryHistoryByExerciseAndTime :: Connection -> Exercise -> Double -> UTCTime -> IO [Only Int]
+queryHistoryByExerciseAndTime conn exercise weight timestamp =
+  query conn
+    "SELECT id FROM pr_history WHERE exercise = ? AND weight_kg = ? AND recorded_at = ?"
+    (exerciseName exercise, weight, show timestamp)
+
+-- | Insert a raw history entry (used by tests that need specific timestamps).
+insertHistory :: Connection -> Exercise -> Double -> UTCTime -> Maybe Text -> IO ()
+insertHistory conn exercise weight timestamp notes =
+  execute conn
+    "INSERT INTO pr_history (exercise, weight_kg, recorded_at, notes) VALUES (?, ?, ?, ?)"
+    (exerciseName exercise, weight, show timestamp, notes)

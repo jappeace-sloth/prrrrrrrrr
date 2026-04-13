@@ -1,18 +1,18 @@
-# Android shared library — uses haskell-mobile's lib.nix.
+# iOS static library — uses haskell-mobile's lib.nix.
 #
-# No TH cross-compilation needed — sqlite-simple has no Template Haskell.
+# Builds with native macOS GHC, then patches Mach-O with mac2ios.
+# No cross-compiler needed — mac2ios handles the platform tag rewrite.
 { sources ? import ../npins
-, androidArch ? "aarch64"
+, simulator ? false
 , mainModule ? ../app/MobileMain.hs
 }:
 let
-  pkgs = import sources.nixpkgs {};
   hatterSrc = sources.haskell-mobile;
   prSyncApiSrc = sources.pr-sync-api;
-  lib = import "${hatterSrc}/nix/lib.nix" { inherit sources androidArch; };
+  lib = import "${hatterSrc}/nix/lib.nix" { inherit sources; };
 
   # Inline cabal2nix function — only library deps, no test deps.
-  # haskell-mobile is compiled separately by mkAndroidLib.
+  # haskell-mobile is compiled separately by mkIOSLib.
   consumerCabal2Nix =
     { mkDerivation, base, containers, lib, sqlite-simple, text
     , pr-sync-api
@@ -31,23 +31,18 @@ let
       license = lib.licenses.mit;
     };
 
-  crossDeps = import "${hatterSrc}/nix/cross-deps.nix" {
-    inherit sources androidArch consumerCabal2Nix;
+  iosDeps = import "${hatterSrc}/nix/ios-deps.nix" {
+    inherit sources consumerCabal2Nix;
     hpkgs = self: _super: {
       pr-sync-api = self.callCabal2nix "pr-sync-api" prSyncApiSrc {};
     };
   };
 
 in
-lib.mkAndroidLib {
-  inherit hatterSrc mainModule crossDeps;
-  pname = "prrrrrrrrr-android";
-  javaPackageName = "me.jappie.prrrrrrrrr";
-  extraJniBridge = [ ../cbits/jni_extras.c ];
-  extraNdkCompile = ndkCc: sysroot: ''
-    ${ndkCc} -c -fPIC -I${sysroot}/usr/include \
-      -o storage_helper.o ${../cbits/storage_helper.c}
-  '';
+lib.mkIOSLib {
+  inherit hatterSrc mainModule simulator;
+  pname = "prrrrrrrrr-ios";
+  crossDeps = iosDeps;
   extraModuleCopy = ''
     mkdir -p GymTracker Hatter
     cp ${../src/Hatter/App.hs} Hatter/App.hs
@@ -59,6 +54,4 @@ lib.mkAndroidLib {
     cp ${../src/GymTracker/Sync.hs} GymTracker/Sync.hs
     cp ${../src/GymTracker/Views.hs} GymTracker/Views.hs
   '';
-  extraLinkObjects = [ "$(pwd)/storage_helper.o" ];
-  extraGhcIncludeDirs = [ ../cbits ];
 }

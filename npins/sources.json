@@ -5,19 +5,45 @@
       "repository": {
         "type": "GitHub",
         "owner": "jappeace",
-        "repo": "haskell-mobile"
+        "repo": "hatter"
       },
       "branch": "master",
       "submodules": false,
-      "revision": "28cc0ac484cac888089b55222b95a17286a3fae7",
-      "url": "https://github.com/jappeace/haskell-mobile/archive/28cc0ac484cac888089b55222b95a17286a3fae7.tar.gz",
-      "hash": "sha256-FSrbA2CvpPq6aEerKwuJq3+m0eHc3XkhwLWmTM5It8o="
+      "revision": "1ab93beb64218f73304ca2ba0df0784ff7e9efcd",
+      "url": "https://github.com/jappeace/hatter/archive/1ab93beb64218f73304ca2ba0df0784ff7e9efcd.tar.gz",
+      "hash": "sha256-X3e5peXJ9iPp9p/CgZlQSTXWI7YiH0Hqni/byv09ds8="
+    },
+    "mobile-core-tools": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "zw3rk",
+        "repo": "mobile-core-tools"
+      },
+      "branch": "master",
+      "submodules": false,
+      "revision": "90e0a52893288bfe85e5ed6bff9cee077e3d18c7",
+      "url": "https://github.com/zw3rk/mobile-core-tools/archive/90e0a52893288bfe85e5ed6bff9cee077e3d18c7.tar.gz",
+      "hash": "sha256-/1Eppd4g/30hU/LKG84VWOgjOfrWfesBqM7eNmnOf08="
     },
     "nixpkgs": {
       "type": "Channel",
       "name": "nixpkgs-unstable",
       "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.05pre968305.fdc7b8f7b30f/nixexprs.tar.xz",
       "hash": "sha256-WLxi1vfcykjq9Yb2umqBJs6lVM6MpV2tXfcrAjroxUk="
+    },
+    "pr-sync-api": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "jappeace-sloth",
+        "repo": "pr-sync-api"
+      },
+      "branch": "feature/history-notes",
+      "submodules": false,
+      "revision": "e6512829f6247360e9952bdfac3572de9c921bb7",
+      "url": "https://github.com/jappeace-sloth/pr-sync-api/archive/e6512829f6247360e9952bdfac3572de9c921bb7.tar.gz",
+      "hash": "sha256-rsV/RgUHxkc5F1G00Qk3riQg1zVF4KXWP74Az6lZWzA="
     }
   },
   "version": 7

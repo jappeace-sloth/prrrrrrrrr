@@ -44,7 +44,6 @@ common common-options
     -Wincomplete-record-updates -Widentities -Wredundant-constraints
     -Wcpp-undef -fwarn-tabs -Wpartial-fields
     -fdefer-diagnostics -Wunused-packages
-    -fenable-th-splice-warnings
     -fno-omit-yields
 
   build-depends:
@@ -55,29 +54,40 @@ common common-options
 library
   import: common-options
   exposed-modules:
-      HaskellMobile.App
+      Hatter.App
+      GymTracker.AppState
+      GymTracker.Config
       GymTracker.Model
       GymTracker.Storage
+      GymTracker.Sync
       GymTracker.Views
+      GymTracker.ServantNative
   reexported-modules:
-      HaskellMobile,
-      HaskellMobile.Types,
-      HaskellMobile.Lifecycle,
-      HaskellMobile.Widget,
-      HaskellMobile.Render
+      Hatter,
+      Hatter.Types,
+      Hatter.Lifecycle,
+      Hatter.Widget,
+      Hatter.Render
   hs-source-dirs:
       src
   build-depends:
-      haskell-mobile,
+      hatter,
+      pr-sync-api,
       text,
-      containers
+      containers,
+      sqlite-simple,
+      servant,
+      servant-client-core,
+      http-types,
+      http-media,
+      case-insensitive,
+      mtl,
+      bytestring,
+      time
   c-sources:
-      cbits/sqlite3.c
       cbits/storage_helper.c
   include-dirs:
       cbits
-  -- sqlite3 needs these
-  cc-options: -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION
 
 executable exe
   import: common-options
@@ -100,4 +110,9 @@ test-suite unit
       tasty-hunit,
       prrrrrrrrr,
       text,
-      containers
+      containers,
+      servant-client-core,
+      hatter,
+      bytestring,
+      http-types,
+      time

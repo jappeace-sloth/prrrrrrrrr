@@ -1,21 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
--- | Core data model for the gym PR tracker.
+-- | Core exercise model for the gym PR tracker.
 module GymTracker.Model
   ( Exercise(..)
   , allExercises
   , exerciseName
+  , parseExercise
   , ExerciseCategory(..)
   , allCategories
   , categoryName
   , exerciseCategory
-  , Screen(..)
-  , AppState(..)
-  , newAppState
   )
 where
 
-import Data.IORef (IORef, newIORef)
-import Data.Map.Strict (Map)
 import Data.Text (Text)
 
 -- | Olympic weightlifting and strength exercises.
@@ -89,30 +85,9 @@ exerciseCategory BackSquat     = Squats
 exerciseCategory OverheadSquat = Squats
 exerciseCategory Deadlift      = Pulls
 
--- | Application screens.
-data Screen
-  = ExerciseList
-  | EnterPR Exercise
-  deriving (Show, Eq)
-
--- | Mutable application state.
-data AppState = AppState
-  { stScreen    :: IORef Screen
-  , stRecords   :: IORef (Map Exercise Double)
-  , stInputText :: IORef Text
-  , stHistory   :: IORef [(Double, Text)]  -- ^ weight + timestamp, newest first
-  }
-
--- | Create a fresh 'AppState' with the given initial records.
-newAppState :: Map Exercise Double -> IO AppState
-newAppState initialRecords = do
-  screen    <- newIORef ExerciseList
-  records   <- newIORef initialRecords
-  inputText <- newIORef ""
-  history   <- newIORef []
-  pure AppState
-    { stScreen    = screen
-    , stRecords   = records
-    , stInputText = inputText
-    , stHistory   = history
-    }
+-- | Parse an exercise name back to its constructor.
+-- Returns 'Nothing' for unrecognised names.
+parseExercise :: Text -> Maybe Exercise
+parseExercise t = case filter (\ex -> exerciseName ex == t) allExercises of
+  [ex] -> Just ex
+  _    -> Nothing
