@@ -4,14 +4,14 @@
       "type": "Git",
       "repository": {
         "type": "GitHub",
-        "owner": "jappeace",
-        "repo": "hatter"
+        "owner": "jappeace-sloth",
+        "repo": "haskell-mobile"
       },
-      "branch": "master",
+      "branch": "feature/keyframe-animation",
       "submodules": false,
-      "revision": "959b0e2b0c10af99e5daeb6dad123c4236320692",
-      "url": "https://github.com/jappeace/hatter/archive/959b0e2b0c10af99e5daeb6dad123c4236320692.tar.gz",
-      "hash": "sha256-iFb+DFTPRGKaNHZx2t4yKsMqgEqCZL2ZgDgB0X3GMFE="
+      "revision": "dbb4f2bbbb54967d2ae237b096c08966f53b76aa",
+      "url": "https://github.com/jappeace-sloth/haskell-mobile/archive/dbb4f2bbbb54967d2ae237b096c08966f53b76aa.tar.gz",
+      "hash": "sha256-hC3Iw1Rj9IbFa2BQfZG19SyQmqFVHd2edOjOHFdGZAs="
     },
     "mobile-core-tools": {
       "type": "Git",
@@ -36,13 +36,13 @@
       "type": "Git",
       "repository": {
         "type": "GitHub",
-        "owner": "jappeace-sloth",
+        "owner": "jappeace",
         "repo": "pr-sync-api"
       },
-      "branch": "feature/history-notes",
+      "branch": "master",
       "submodules": false,
-      "revision": "e6512829f6247360e9952bdfac3572de9c921bb7",
-      "url": "https://github.com/jappeace-sloth/pr-sync-api/archive/e6512829f6247360e9952bdfac3572de9c921bb7.tar.gz",
+      "revision": "0142a625ff73b0d406dfc37f79fec51c12755286",
+      "url": "https://github.com/jappeace/pr-sync-api/archive/0142a625ff73b0d406dfc37f79fec51c12755286.tar.gz",
       "hash": "sha256-rsV/RgUHxkc5F1G00Qk3riQg1zVF4KXWP74Az6lZWzA="
     }
   },

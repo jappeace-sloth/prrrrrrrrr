@@ -29,7 +29,7 @@ import GymTracker.Storage
   , queryHistoryByExerciseAndTime, insertHistory
   )
 import GymTracker.Views (AppActions, exerciseListView, enterPRView, appRootView, createAppActions, calculatePercentage, confettiOverlay)
-import Hatter.Widget (AnimatedConfig(..), Easing(..), LayoutSettings(..), TextAlignment(..), TextConfig(..), Widget(..), WidgetStyle(..))
+import Hatter.Widget (AnimatedConfig(..), LayoutSettings(..), TextAlignment(..), TextConfig(..), Widget(..), WidgetStyle(..), LayoutItem(..))
 import Hatter (newActionState, runActionM)
 
 import Data.ByteString qualified as BS
@@ -206,7 +206,7 @@ viewTests = testGroup "Views"
       (st, actions) <- mkTestActions
       widget <- exerciseListView actions st
       case widget of
-        Column (LayoutSettings (_ : _ : thirdChild : _) True) ->
+        Column (LayoutSettings (_ : _ : LayoutItem _ thirdChild : _) True) ->
           case thirdChild of
             Styled style (Text config) -> do
               tcLabel config @?= categoryName Snatches
@@ -217,40 +217,31 @@ viewTests = testGroup "Views"
         Column _ -> assertFailure "expected at least 3 children in scrollable Column"
         _        -> assertFailure "expected Column"
 
-  , testCase "enterPRView returns Column with input, buttons, and history section" $ do
+  , testCase "enterPRView returns Stack with 1 child (form column)" $ do
       (st, actions) <- mkTestActions
       widget <- enterPRView actions st Snatch
       case widget of
-        Column (LayoutSettings children False) ->
+        Stack [LayoutItem _ (Column (LayoutSettings children False))] ->
           -- "Set PR:" label + exercise name + weight TextInput + notes TextInput + Row of buttons + Column history = 6
           length children @?= 6
-        Text _          -> assertFailure "expected Column, got Text"
-        Button _        -> assertFailure "expected Column, got Button"
-        TextInput _     -> assertFailure "expected Column, got TextInput"
-        Row _           -> assertFailure "expected Column, got Row"
-        Image _         -> assertFailure "expected Column, got Image"
-        WebView _       -> assertFailure "expected Column, got WebView"
-        MapView _       -> assertFailure "expected Column, got MapView"
-        Styled _ _      -> assertFailure "expected Column, got Styled"
-        Animated _ _    -> assertFailure "expected Column, got Animated"
-        Column _        -> assertFailure "expected non-scrollable Column"
-        Stack _         -> assertFailure "expected Column, got Stack"
+        Stack items -> assertFailure ("expected Stack with 1 child, got " ++ show (length items))
+        _           -> assertFailure "expected Stack"
 
   , testCase "enterPRView with history shows entries in 6th Column child" $ do
       (st, actions) <- mkTestActions
       writeIORef (stHistory st) [(100.0, "2026-01-01 12:00:00", Nothing), (90.0, "2025-12-01 10:00:00", Nothing)]
       widget <- enterPRView actions st Snatch
       case widget of
-        Column (LayoutSettings [_, _, _, _, _, Column (LayoutSettings historyWidgets False)] False) ->
+        Stack [LayoutItem _ (Column (LayoutSettings [_, _, _, _, _, LayoutItem _ (Column (LayoutSettings historyWidgets False))] False))] ->
           length historyWidgets @?= 2
-        Column _ -> assertFailure "expected 6 children with history Column as 6th"
-        _        -> assertFailure "expected Column"
+        Stack _ -> assertFailure "expected Stack with form Column containing 6 children"
+        _       -> assertFailure "expected Stack"
 
   , testCase "appRootView dispatches to correct screen" $ do
       (st, actions) <- mkTestActions
       widget <- appRootView actions st
       case widget of
-        Styled _ (Column (LayoutSettings (Styled _ (Text config) : _) True)) ->
+        Styled _ (Column (LayoutSettings (LayoutItem _ (Styled _ (Text config)) : _) True)) ->
           tcLabel config @?= "PRRRRRRRRR"
         Styled _ (Column _) -> assertFailure "expected scrollable Column with children"
         Styled _ _          -> assertFailure "expected Styled wrapping scrollable Column"
@@ -305,7 +296,7 @@ percentageTests = testGroup "Percentage calculator"
           -- Find the percentage text row after the Snatch button
           -- Layout: title, %input, "Snatches" header, Snatch button, percentage text, ...
           case drop 3 children of  -- skip title, %input, Snatches header
-            (_button : Styled _style (Text config) : _) ->
+            (_button : LayoutItem _ (Styled _style (Text config)) : _) ->
               tcLabel config @?= "64.0 kg @ 80%"
             _ -> assertFailure "expected button followed by percentage text"
         Column _ -> assertFailure "expected scrollable Column"
@@ -314,42 +305,73 @@ percentageTests = testGroup "Percentage calculator"
 
 confettiTests :: TestTree
 confettiTests = testGroup "Confetti"
-  [ testCase "enterPRView without confetti has 6 children" $ do
+  [ testCase "enterPRView without confetti is Stack with 1 child" $ do
       (st, actions) <- mkTestActions
       widget <- enterPRView actions st Snatch
       case widget of
-        Column (LayoutSettings children False) -> length children @?= 6
-        Column _  -> assertFailure "expected non-scrollable Column"
-        _         -> assertFailure "expected Column"
+        Stack items -> length items @?= 1
+        _           -> assertFailure "expected Stack"
 
-  , testCase "enterPRView with confetti has 7 children (6 form + overlay)" $ do
-      (st, actions) <- mkTestActions
-      writeIORef (stConfetti st) True
-      widget <- enterPRView actions st Snatch
-      case widget of
-        Column (LayoutSettings children False) -> length children @?= 7
-        Column _  -> assertFailure "expected non-scrollable Column"
-        _         -> assertFailure "expected Column"
-
-  , testCase "enterPRView confetti last child is Animated" $ do
+  , testCase "enterPRView with confetti has 2 stack children" $ do
       (st, actions) <- mkTestActions
       writeIORef (stConfetti st) True
       widget <- enterPRView actions st Snatch
       case widget of
-        Column (LayoutSettings children False) -> case last children of
-          Animated config _ -> do
-            anDuration config @?= 1200
-            anEasing config @?= EaseOut
-          _ -> assertFailure "expected last child to be Animated"
-        Column _ -> assertFailure "expected non-scrollable Column"
-        _        -> assertFailure "expected Column"
+        Stack items -> length items @?= 2
+        _           -> assertFailure "expected Stack"
 
-  , testCase "confettiOverlay contains 20 particles in a Column" $ do
+  , testCase "confetti second stack child has touch passthrough" $ do
+      (st, actions) <- mkTestActions
+      writeIORef (stConfetti st) True
+      widget <- enterPRView actions st Snatch
+      case widget of
+        Stack [_, LayoutItem _ (Styled style _)] ->
+          wsTouchPassthrough style @?= Just True
+        Stack _ -> assertFailure "expected 2 stack children with Styled confetti"
+        _       -> assertFailure "expected Stack"
+
+  , testCase "confettiOverlay contains 20 particles in a Stack" $ do
       widget <- confettiOverlay
       case widget of
-        Animated _ (Column (LayoutSettings particles False)) -> length particles @?= 20
-        Animated _ _  -> assertFailure "expected Column inside Animated"
-        _             -> assertFailure "expected Animated"
+        Styled _ (Stack particles) -> do
+          length particles @?= 20
+          -- Each particle should be wrapped in Animated
+          mapM_ (\(LayoutItem _ child) -> case child of
+            Animated _ _ -> pure ()
+            _            -> assertFailure "expected each particle wrapped in Animated"
+            ) particles
+        Styled _ _ -> assertFailure "expected Stack inside Styled"
+        _          -> assertFailure "expected Styled"
+
+  , testCase "each confetti particle has scatter+fade animation (2.3s total)" $ do
+      widget <- confettiOverlay
+      case widget of
+        Styled _ (Stack (LayoutItem _ (Animated config _) : _)) ->
+          -- easeOutAnimation 1.5 + linearAnimation 0.8 = 2.3s total
+          anDuration config @?= 2.3
+        Styled _ (Stack _) -> assertFailure "expected first particle to be Animated"
+        _                  -> assertFailure "expected Styled Stack"
+
+  , testCase "confetti particles use screen-proportional offsets" $ do
+      widget <- confettiOverlay
+      case widget of
+        Styled _ (Stack particles) -> do
+          let extractOffsets :: LayoutItem -> (Double, Double)
+              extractOffsets (LayoutItem _ (Animated _ (Styled style _))) =
+                let tx = maybe 0 id (wsTranslateX style)
+                    ty = maybe 0 id (wsTranslateY style)
+                in (tx, ty)
+              extractOffsets _ = (0, 0)
+              offsets = map extractOffsets particles
+          -- Desktop fallback: 400dp wide, 800dp tall
+          -- All offsets should be in [0, 400] x [0, 800]
+          mapM_ (\(tx, ty) -> do
+            assertBool ("translateX " ++ show tx ++ " should be >= 0") (tx >= 0)
+            assertBool ("translateX " ++ show tx ++ " should be <= 400") (tx <= 400)
+            assertBool ("translateY " ++ show ty ++ " should be >= 0") (ty >= 0)
+            assertBool ("translateY " ++ show ty ++ " should be <= 800") (ty <= 800)
+            ) offsets
+        _ -> assertFailure "expected Styled Stack"
   ]
 
 -- | Replicate the parseWeight logic from Views for testing.

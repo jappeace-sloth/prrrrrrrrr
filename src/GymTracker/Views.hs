@@ -30,20 +30,23 @@ import GymTracker.Model
 import GymTracker.Storage (withDatabase, saveRecord, loadExerciseHistory)
 import GymTracker.Sync (triggerSync)
 import Hatter (Action, OnChange, ActionM, createAction, createOnChange)
+import Hatter.DeviceInfo (DeviceInfo(..), getDeviceInfo)
 import Hatter.Widget
-  ( AnimatedConfig(..)
-  , ButtonConfig(..)
+  ( ButtonConfig(..)
   , Color(..)
-  , Easing(..)
   , InputType(..)
-  , LayoutSettings(..)
   , TextAlignment(..)
   , TextConfig(..)
   , TextInputConfig(..)
   , Widget(..)
   , WidgetStyle(..)
+  , andThen
   , column
+  , easeOutAnimation
+  , linearAnimation
   , row
+  , scrollColumn
+  , stack
   , defaultStyle
   )
 
@@ -137,7 +140,7 @@ exerciseListView actions st = do
       children = Styled centeredText (Text TextConfig { tcLabel = "PRRRRRRRRR", tcFontConfig = Nothing })
           : percentageRow
           : concatMap categorySection allCategories
-  pure $ Column (LayoutSettings children True)
+  pure $ scrollColumn children
 
 -- | A single exercise button, optionally followed by a calculated percentage text.
 -- Returns one widget (button only) when percentage is 0 or the exercise has no PR,
@@ -200,15 +203,13 @@ enterPRView actions st ex = do
             ]
         , column historyWidgets
         ]
-  confetti <- if showConfetti
+  confettiLayer <- if showConfetti
     then fmap (: []) confettiOverlay
     else pure []
-  -- Confetti is appended (not prepended) so the form widgets keep their
-  -- position indices across renders.  Prepending would shift every child
-  -- by one, causing the diff algorithm to mismatch TextInput nodes and
-  -- destroy the focused weight EditText — Android then transfers focus
-  -- to the notes field, scrolling wearOS to the wrong section.
-  pure $ column $ formWidgets ++ confetti
+  -- Always use stack as root so the diff algorithm sees a stable root
+  -- type across renders.  Confetti floats as a second stack child on top
+  -- of the form column, using wsTouchPassthrough so taps pass through.
+  pure $ stack $ column formWidgets : confettiLayer
 
 -- | Render a single history entry, optionally showing notes.
 historyEntry :: (Double, Text, Maybe Text) -> Widget
@@ -222,14 +223,26 @@ historyEntry (weight, timestamp, notes) =
 -- | Confetti animation overlay — scattered animated colored particles.
 -- Shown on the EnterPR screen after saving a new personal record.
 -- Uses random positions and colors so each celebration looks unique.
+-- Each particle scatters from the origin (top-left) to a random screen
+-- position over 1.5s (ease-out), then fades out over 0.8s (linear).
 confettiOverlay :: IO Widget
 confettiOverlay = do
+  deviceInfo <- getDeviceInfo
   gen <- newStdGen
-  let randoms = randomRs (0 :: Int, 999) gen
+  let -- Convert physical pixels to dp; desktop returns 0 so use fallback
+      density = max 1.0 (diScreenDensity deviceInfo)
+      rawWidth = diScreenWidth deviceInfo
+      rawHeight = diScreenHeight deviceInfo
+      dpWidth :: Double
+      dpWidth  = if rawWidth  == 0 then 400 else fromIntegral rawWidth  / density
+      dpHeight :: Double
+      dpHeight = if rawHeight == 0 then 800 else fromIntegral rawHeight / density
+      randoms = randomRs (0 :: Int, 999) gen
       -- Take 3 random ints per particle: x-offset seed, y-offset seed, color index
       triples = takeTriples particleCount randoms
-      particles = map mkParticle triples
-  pure $ Animated (AnimatedConfig 1200 EaseOut) $ column particles
+      particles = map (mkParticle dpWidth dpHeight) triples
+  pure $ Styled (defaultStyle { wsTouchPassthrough = Just True })
+       $ stack particles
   where
     particleCount :: Int
     particleCount = 20
@@ -242,16 +255,33 @@ confettiOverlay = do
     takeTriples _ [_, _]        = []
     takeTriples n (a:b:c:rest)  = (a, b, c) : takeTriples (n - 1) rest
 
-    mkParticle :: (Int, Int, Int) -> Widget
-    mkParticle (xSeed, ySeed, colorSeed) =
-      let offsetX = fromIntegral (xSeed `mod` 301) - 150 :: Double  -- -150 to +150
-          offsetY = fromIntegral (ySeed `mod` 551) - 50  :: Double  -- -50 to +500
+    -- | Build a single confetti particle with scatter + fade animation.
+    mkParticle :: Double -> Double -> (Int, Int, Int) -> Widget
+    mkParticle screenWidth screenHeight (xSeed, ySeed, colorSeed) =
+      let targetX = fromIntegral (xSeed `mod` 1000) / 999.0 * screenWidth
+          targetY = fromIntegral (ySeed `mod` 1000) / 999.0 * screenHeight
           color   = palette !! (colorSeed `mod` length palette)
-      in Styled (defaultStyle
-        { wsTextColor  = Just color
-        , wsTranslateX = Just offsetX
-        , wsTranslateY = Just offsetY
-        }) (Text TextConfig { tcLabel = "*", tcFontConfig = Nothing })
+          originStyle = defaultStyle
+            { wsTranslateX = Just 0
+            , wsTranslateY = Just 0
+            , wsTextColor  = Just color
+            }
+          targetStyle = defaultStyle
+            { wsTranslateX = Just targetX
+            , wsTranslateY = Just targetY
+            , wsTextColor  = Just color
+            }
+          fadeStyle = defaultStyle
+            { wsTranslateX = Just targetX
+            , wsTranslateY = Just targetY
+            , wsTextColor  = Just (color { colorAlpha = 0 })
+            }
+          animConfig = easeOutAnimation 1.5 originStyle targetStyle
+                         `andThen`
+                       linearAnimation 0.8 targetStyle fadeStyle
+      in Animated animConfig
+           $ Styled fadeStyle
+               (Text TextConfig { tcLabel = "*", tcFontConfig = Nothing })
 
     palette :: [Color]
     palette =
